@@ -6,6 +6,9 @@ import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
 import androidx.activity.result.contract.ActivityResultContracts
+import android.content.pm.PackageManager
+import androidx.core.app.ActivityCompat
+import androidx.core.content.ContextCompat
 import androidx.appcompat.app.AppCompatActivity
 import androidx.media3.common.MediaItem
 import androidx.media3.common.util.UnstableApi
@@ -20,6 +23,8 @@ class MainActivity : AppCompatActivity() {
     private var player: ExoPlayer? = null
     private val recentFiles = mutableListOf<RecentFile>()
     private lateinit var adapter: RecentFilesAdapter
+
+    private val REQUEST_CODE_PERMISSIONS = 101
 
     private val pickFileLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
         if (result.resultCode == Activity.RESULT_OK) {
@@ -45,11 +50,11 @@ class MainActivity : AppCompatActivity() {
         binding.rvRecentFiles.adapter = adapter
 
         binding.btnPickFile.setOnClickListener {
-            val intent = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
-                addCategory(Intent.CATEGORY_OPENABLE)
-                type = "video/*"
+            if (ContextCompat.checkSelfPermission(this, android.Manifest.permission.READ_MEDIA_VIDEO) != PackageManager.PERMISSION_GRANTED) {
+                ActivityCompat.requestPermissions(this, arrayOf(android.Manifest.permission.READ_MEDIA_VIDEO), REQUEST_CODE_PERMISSIONS)
+            } else {
+                openFilePicker()
             }
-            pickFileLauncher.launch(intent)
         }
 
         binding.btnPlayUrl.setOnClickListener {
@@ -104,6 +109,26 @@ class MainActivity : AppCompatActivity() {
         val prefs = getSharedPreferences("recent_files", Context.MODE_PRIVATE)
         val flat = recentFiles.flatMap { listOf(it.uri, it.name) }.joinToString(",")
         prefs.edit().putString("files", flat).apply()
+    }
+
+    private fun openFilePicker() {
+        val intent = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
+            addCategory(Intent.CATEGORY_OPENABLE)
+            type = "video/*"
+        }
+        pickFileLauncher.launch(intent)
+    }
+
+    override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (requestCode == REQUEST_CODE_PERMISSIONS) {
+            if (grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+                openFilePicker()
+            } else {
+                // Permission denied, show a message to the user
+                // You might want to add a Toast or Snackbar here
+            }
+        }
     }
 
     override fun onStop() {
